@@ -1,0 +1,52 @@
+#loading_modules
+
+library(quantmod)
+library(tseries)
+library(timeSeries)
+library(forecast)
+library(xts)
+library(PerformanceAnalytics)
+walmart<-read.csv(file="C:/Users/aakarsh/Downloads/IS/EOD-WMT.csv",header = TRUE,sep=",")
+walmart$Date<-as.Date(as.character(walmart$Date),formate="%y%m%d")
+attach(walmart)
+close_minimum <- min(Close)
+close_maximum <- max(Close)
+walmart<- within(walmart, Close <- (Close - close_minimum)/(close_maximum - close_minimum))
+stock<-xts(walmart$Close,walmart$Date)
+stock = stock[!is.na(stock)]
+plot(stock,type='l', main='stock data')
+breakpoint = floor(nrow(stock)*(2.9/3))
+print(adf.test(stock))
+par(mfrow = c(1,1))
+acf.stock = acf(stock[c(1:breakpoint),], main='ACF Plot', lag.max=100)
+pacf.stock = pacf(stock[c(1:breakpoint),], main='PACF Plot', lag.max=100)
+Actual_series = xts(0,as.Date("2016-05-31","%Y-%m-%d"))
+forecasted_series = data.frame(Forecasted = numeric())
+for (b in breakpoint:(nrow(stock)-1))
+{
+  stock_train = stock[1:b, ]
+  stock_test = stock[(b+1):nrow(stock), ]
+  fit = arima(stock_train, order = c(4, 0, 2),include.mean=FALSE)
+  arima.forecast = forecast(fit, h = 1,level=99)
+  par(mfrow=c(1,1))
+  plot(arima.forecast, main = "ARIMA Forecast")
+  forecasted_series = rbind(forecasted_series,arima.forecast$mean[1])
+  colnames(forecasted_series) = c("Forecasted")
+  Actual_return = stock[(b+1),]
+  Actual_series = c(Actual_series,xts(Actual_return))
+  rm(Actual_return)
+}
+Actual_series = Actual_series[-1]
+forecasted_series = xts(forecasted_series,index(Actual_series))
+plot(Actual_series,type='l',main='Actual Returns Vs Forecasted Returns')
+lines(forecasted_series,lwd=1.5,col='red')
+forecastx<-as.data.frame(forecasted_series)
+arima.forecast = forecast(fit, h = 5,level=99)
+nextdays <- as.data.frame(nextdays)
+colnames(nextdays)<-c("result","1","2")
+forecastx<-within(forecastx,forecastx$Forecasted <- (forecastx$Forecasted * (close_maximum - close_minimum)) + close_minimum)
+nextdays<-within(nextdays,nextdays$result <-(nextdays$result * (close_maximum - close_minimum)) + close_minimum)
+tail(forecastx)
+head(nextdays)
+library(Metrics)
+rmse(forecasted_series,Actual_series)
